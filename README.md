@@ -1,2 +1,2 @@
-# 1izard333.cs412.github.io
+# 1izard333.github.io
 CS 412 GitHub Page for course work/project
