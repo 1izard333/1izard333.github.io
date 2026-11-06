@@ -1,8 +1,14 @@
-function makePlanet(r, vSteps, uSteps, color = [0.2, 0.4, 0.9]) {
+// using NASA equirectangular projection --> u & v repeat == 1 
+
+function makePlanet(r, vSteps, uSteps, color = [0.2, 0.4, 0.9], uRepeat = 1, vRepeat = 1) {
     const positions = [];
     const colors = [];
     const indices = [];
     const normals = [];
+
+     // for texture
+    const tangents = [];
+    const textureCoors = [];
 
     /* 
     phi -> 0 - pi
@@ -34,6 +40,10 @@ function makePlanet(r, vSteps, uSteps, color = [0.2, 0.4, 0.9]) {
             normals.push(x, y, z);
 
             colors.push(color[0], color[1], color[2]);
+
+            // map the texture coordinates 
+            textureCoors.push(uRepeat * (1 - j / uSteps), vRepeat * (1 - i / vSteps));
+            tangents.push(cosU, 0, -sinU)
         }
 
     }
@@ -50,5 +60,7 @@ function makePlanet(r, vSteps, uSteps, color = [0.2, 0.4, 0.9]) {
         colors: new Float32Array(colors),
         indices: new Uint16Array(indices),
         normals: new Float32Array(normals),
+        tangents: new Float32Array(tangents),
+        textureCoors: new Float32Array(textureCoors),
     };
 }
