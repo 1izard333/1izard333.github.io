@@ -9,9 +9,10 @@ const NO_MAPPING = 2;
 const COLOR_MAPPING = 3;   
  
 function buildScene(){
+    const panelTexture = loadTexture("textures/brick.png");
+    const sunGif = loadGifTexture("textures/sun.gif"); // sun texture
 
     // sun == root 
-    const sunGif = loadGifTexture("textures/sun.gif"); // sun texture
     const sun = {
         data: SUN,
         sphere: makeShapeBuffers(makePlanet(displayRadius(SUN), sphereSteps, sphereSteps, SUN.color, 1, 1)),
@@ -47,6 +48,6 @@ function buildScene(){
     const satPanelMaterial = MATERIAL;
  
     // return data structures 
-    return {sun, planets, satBody, satPanel, orbitMaterial, satBodyMaterial, satPanelMaterial };
+    return {sun, planets, satBody, satPanel, orbitMaterial, satBodyMaterial, satPanelMaterial, sunGif, panelTexture  };
 }
  
