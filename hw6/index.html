@@ -223,7 +223,7 @@
 
                 // texture mapping 
                 if (uMapping == 3) {
-                    base = texture(uTexture, vTexCoord).rgb;
+                    base = texture(uTexture, vTextureCoor).rgb;
                 }
  
                 // bump / normal mapping
@@ -242,13 +242,13 @@
                         vec2 texel = 1.0 / vec2(textureSize(uTexture, 0));
                         vec2 du = vec2(texel.x, 0.0);
                         vec2 dv = vec2(0.0, texel.y);
-                        float dhdu = (height(vTexCoord + du) - height(vTexCoord - du)) * 0.5;
-                        float dhdv = (height(vTexCoord + dv) - height(vTexCoord - dv)) * 0.5;
-                        n = normalize(vec3(-bumpScale * dhdu, -bumpScale * dhdv, 1.0));
-                        base = texture(uTexture, vTexCoord).rgb;   
-
+                        float dhdu = (height(vTextureCoor + du) - height(vTextureCoor - du)) * 0.5;
+                        float dhdv = (height(vTextureCoor + dv) - height(vTextureCoor - dv)) * 0.5;
+                        n = normalize(vec3(-bumbSize * dhdu, -bumbSize * dhdv, 1.0));
+                        base = texture(uTexture, vTextureCoor).rgb;   
+                    } else {
                         // normal mapping
-                        n = normalize(texture(uTexture, vTexCoord).rgb * 2.0 - 1.0);
+                        n = normalize(texture(uTexture, vTextureCoor).rgb * 2.0 - 1.0);
                     }
  
                     normal = normalize(TBN * n);
@@ -354,13 +354,13 @@
                 gl.bindBuffer(gl.ARRAY_BUFFER, tbo);
                 gl.bufferData(gl.ARRAY_BUFFER, shape.tangents, gl.STATIC_DRAW);
             }
-            if (shape.texCoords) {
+            if (shape.textureCoors) {
                 tcbo = gl.createBuffer();
                 gl.bindBuffer(gl.ARRAY_BUFFER, tcbo);
-                gl.bufferData(gl.ARRAY_BUFFER, shape.texCoords, gl.STATIC_DRAW);
+                gl.bufferData(gl.ARRAY_BUFFER, shape.textureCoors, gl.STATIC_DRAW);
             }
 
-            return { vbo, cbo, ibo, nbo, count: shape.indices.length, mode : mode};
+            return { vbo, cbo, ibo, nbo, tbo, tcbo, count: shape.indices.length, mode : mode};
         }
 
         // load an image into a webgl texture --> from sample hw6
@@ -558,7 +558,7 @@
                 }
 
                 tangentLoc = gl.getAttribLocation(program, "aTangent");
-                texCoordLoc = gl.getAttribLocation(program, "aTexCoord");
+                texCoordLoc = gl.getAttribLocation(program, "aTextureCoor");
                 uMappingLoc = gl.getUniformLocation(program, "uMapping");
                 uTextureLoc = gl.getUniformLocation(program, "uTexture");
                 gl.uniform1i(uTextureLoc, 0);

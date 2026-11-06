@@ -27,9 +27,9 @@ function makePrism(width, height, length, color){
         // tan = B X N --> N X T = B 
         const normal = face.n;
         const bitan = face.b;
-        const tan = [b[1] * n[2] - b[2] * n[1],
-                     b[2] * n[0] - b[0] * n[2],
-                     b[0] * n[1] - b[1] * n[0]];
+        const tan = [bitan[1] * normal[2] - bitan[2] * normal[1],
+             bitan[2] * normal[0] - bitan[0] * normal[2],
+             bitan[0] * normal[1] - bitan[1] * normal[0]];
 
         for (let j = 0; j < 4; j++) {
             const corner = face.v[j];
@@ -39,9 +39,10 @@ function makePrism(width, height, length, color){
         }
 
         // need to account for the corners 
-        const s = Math.sin(theta), c = Math.cos(theta);
-        tangents.push(1, 0, 0);
-        texCoords.push(0.5 + 0.5 * s, 0.5 - 0.5 * y * c);
+        const s = 0.5 + 0.5 * (corner[0] * tan[0]   + corner[1] * tan[1]   + corner[2] * tan[2]);
+        const t = 0.5 + 0.5 * (corner[0] * bitan[0] + corner[1] * bitan[1] + corner[2] * bitan[2]);
+        textureCoors.push(s, t);
+        tangents.push(tan[0], tan[1], tan[2]);
 
 
         indicies.push(pos_index, pos_index + 1, pos_index + 2,

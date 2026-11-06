@@ -43,7 +43,7 @@ function makePlanet(r, vSteps, uSteps, color = [0.2, 0.4, 0.9], uRepeat = 1, vRe
 
             // map the texture coordinates 
             textureCoors.push(uRepeat * (1 - j / uSteps), vRepeat * (1 - i / vSteps));
-            tangents.push(cosU, 0, -sinU)
+            tangents.push(sinU, 0, -cosU); 
         }
 
     }
