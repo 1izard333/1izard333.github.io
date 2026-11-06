@@ -36,13 +36,13 @@ function makePrism(width, height, length, color){
             positions.push(corner[0] * (width / 2), corner[1] * (height / 2), corner[2] * (length / 2));
             normals.push(face.n[0], face.n[1], face.n[2]);
             colors.push(color[0], color[1], color[2]);
-        }
 
-        // need to account for the corners 
-        const s = 0.5 + 0.5 * (corner[0] * tan[0]   + corner[1] * tan[1]   + corner[2] * tan[2]);
-        const t = 0.5 + 0.5 * (corner[0] * bitan[0] + corner[1] * bitan[1] + corner[2] * bitan[2]);
-        textureCoors.push(s, t);
-        tangents.push(tan[0], tan[1], tan[2]);
+            // need to account for the corners 
+            const s = 0.5 + 0.5 * (corner[0] * tan[0]   + corner[1] * tan[1]   + corner[2] * tan[2]);
+            const t = 0.5 + 0.5 * (corner[0] * bitan[0] + corner[1] * bitan[1] + corner[2] * bitan[2]);
+            textureCoors.push(s, t);
+            tangents.push(tan[0], tan[1], tan[2]);
+        }
 
 
         indicies.push(pos_index, pos_index + 1, pos_index + 2,
