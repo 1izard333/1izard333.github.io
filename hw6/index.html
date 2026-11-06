@@ -109,6 +109,8 @@
         in vec3 aPosition; 
         in vec3 aColor; 
         in vec3 aNormal; // surface normal in shapes 
+        in vec3 aTangent;
+        in vec2 aTextureCoor;
         
         uniform float uTime; //time in sec 
         uniform mat4 uModelViewMatrix; 
@@ -119,12 +121,19 @@
         out vec3 vColor;
         out vec3 vLensPosition;
         out vec3 vNormalLens;
+        out vec3 vTangent;
+        out vec2 vTextureCoor;
         
         void main() { 
             // position matrix of the view point
             vec4 posLens = uModelViewMatrix * uModelTransformationMatrix * vec4(aPosition,1.0); 
             vLensPosition = posLens.xyz; // drop the last val
             vNormalLens = normalize(uNormalMatrix * aNormal);
+
+            
+            vTangent = mat3(uModelViewMatrix * uModelTransformationMatrix) * aTangent;
+            vTextureCoor = aTextureCoor;
+
             gl_Position = uProjectionMatrix * posLens; 
             vColor = aColor;
         }
@@ -138,6 +147,8 @@
             in vec3 vColor; 
             in vec3 vLensPosition;
             in vec3 vNormalLens;
+            in vec3 vTangent;
+            in vec2 vTextureCoor;
             out vec4 fragColor; 
 
             struct Material {
@@ -151,6 +162,17 @@
 
             uniform Material uMaterial;
             uniform bool uFlatShading;
+
+            uniform sampler2D uTexture;
+            uniform int uMapping; // numerical indicatore from scene 
+
+            const float bumbSize = 3.0;
+
+            // brightnes & hieght relation
+            float height(vec2 uv) {
+                vec3 c = texture(uTexture, uv).rgb;
+                return 1.0 - dot(c, vec3(0.299, 0.587, 0.114));
+            }
 
             // lights -- in view (lens) coordinates
             const int NUM_LIGHTS = 2;
@@ -197,24 +219,59 @@
                     normal = normalize(vNormalLens);
                 }
 
+                vec3 base = vColor;
+
+                // texture mapping 
+                if (uMapping == 3) {
+                    base = texture(uTexture, vTexCoord).rgb;
+                }
+ 
+                // bump / normal mapping
+                if (uMapping == 0 || uMapping == 1) {
+                    // tangent frame (T, B, N): T and B lie in the surface, N sticks out.
+                    // gram-schmidt makes T exactly perpendicular to N after interpolation.
+                    vec3 N = normal;
+                    vec3 T = normalize(vTangent - dot(vTangent, N) * N);
+                    vec3 B = cross(N, T);
+                    mat3 TBN = mat3(T, B, N);  
+ 
+                    vec3 n;  
+                    if (uMapping == 0) {
+
+                        // bump mapping
+                        vec2 texel = 1.0 / vec2(textureSize(uTexture, 0));
+                        vec2 du = vec2(texel.x, 0.0);
+                        vec2 dv = vec2(0.0, texel.y);
+                        float dhdu = (height(vTexCoord + du) - height(vTexCoord - du)) * 0.5;
+                        float dhdv = (height(vTexCoord + dv) - height(vTexCoord - dv)) * 0.5;
+                        n = normalize(vec3(-bumpScale * dhdu, -bumpScale * dhdv, 1.0));
+                        base = texture(uTexture, vTexCoord).rgb;   
+
+                        // normal mapping
+                        n = normalize(texture(uTexture, vTexCoord).rgb * 2.0 - 1.0);
+                    }
+ 
+                    normal = normalize(TBN * n);
+                }
+ 
                 // ortho camera -> view direction is +z everywhere
                 vec3 viewDir = vec3(0.0, 0.0, 1.0);
-
-                vec3 base = vColor;
+ 
                 vec3 specColor = mix(vec3(1.0), base, uMaterial.metallic);
-
+ 
                 vec3 emissive = uMaterial.emissive * base;      // sun + orbits glow
-                vec3 ambient = uMaterial.ka * uAmbient * base;  // I_a * Ka, once
-
+                vec3 ambient = uMaterial.ka * uAmbient * base;  // I_a * Ka
+ 
                 // I_final = I_a Ka + sum of each light
                 vec3 result = emissive + ambient;
                 for (int i = 0; i < NUM_LIGHTS; i++) {
                     result += calculateLight(uLightPos[i], uLightColor[i], uLightAtt[i],
                                              normal, viewDir, base, specColor);
                 }
-
+ 
                 fragColor = vec4(result,1.0); 
             }
+            
         </script>
 
     <script src="primitives.js"></script>
@@ -268,6 +325,9 @@
         let normalLoc, uNM, uFlat, uLightPosLoc, uLightColorLoc, uLightAttLoc, uAmbientLoc;
         const uMat = {}; 
 
+        // vars for texture
+        let tangentLoc, texCoordLoc, uMappingLoc, uTextureLoc;
+
         // function to place shapes 
         function makeShapeBuffers(shape, mode = gl.TRIANGLES) {
             const vbo = gl.createBuffer();
@@ -286,7 +346,104 @@
             gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
             gl.bufferData(gl.ARRAY_BUFFER, shape.normals, gl.STATIC_DRAW);
 
+            // only spheres have tangents + texture coordinates;
+            // orbits and satellite prisms stay null!!!
+            let tbo = null, tcbo = null;
+            if (shape.tangents) {
+                tbo = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, tbo);
+                gl.bufferData(gl.ARRAY_BUFFER, shape.tangents, gl.STATIC_DRAW);
+            }
+            if (shape.texCoords) {
+                tcbo = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, tcbo);
+                gl.bufferData(gl.ARRAY_BUFFER, shape.texCoords, gl.STATIC_DRAW);
+            }
+
             return { vbo, cbo, ibo, nbo, count: shape.indices.length, mode : mode};
+        }
+
+        // load an image into a webgl texture --> from sample hw6
+        function loadTexture(url) {
+            const texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+                          new Uint8Array([128, 128, 255, 255]));
+ 
+            const image = new Image();
+            image.onload = () => {
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);  // images start at the top row, texture coords at the bottom
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+                gl.generateMipmap(gl.TEXTURE_2D);              
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+            };
+            image.src = url;
+            return texture;
+        }
+ 
+        // animated texture from a gif --> uplaod frames with every render
+        function loadGifTexture(url) {
+            const texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            // placeholder ---> one orange pixel until the frames are decoded
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+                          new Uint8Array([240, 160, 40, 255]));
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+ 
+            const gif = { texture, frames: [], durations: [], totalMs: 0, current: -1 };
+ 
+            if ("ImageDecoder" in window) {
+                decodeGif(url, gif).catch(e => console.error("GIF decode failed:", e));
+            } else {
+                // show first frame if no imagedecoder
+                const image = new Image();
+                image.onload = () => {
+                    gl.bindTexture(gl.TEXTURE_2D, texture);
+                    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+                };
+                image.src = url;
+            }
+            return gif;
+        }
+ 
+        // turn gifs into bit map 
+        async function decodeGif(url, gif) {
+            const response = await fetch(url);
+            const decoder = new ImageDecoder({ data: await response.arrayBuffer(), type: "image/gif" });
+            await decoder.tracks.ready;
+            const frameCount = decoder.tracks.selectedTrack.frameCount;
+ 
+            for (let i = 0; i < frameCount; i++) {
+                const { image } = await decoder.decode({ frameIndex: i });
+                gif.frames.push(await createImageBitmap(image, { imageOrientation: "flipY" }));
+                const ms = image.duration ? image.duration / 1000 : 100; // in ms
+                gif.durations.push(ms);
+                gif.totalMs += ms;
+                image.close();
+            }
+            decoder.close();
+        }
+ 
+        // uplaod frame that needs to be displayed
+        function updateGifTexture(gif, timeMs) {
+            if (gif.frames.length === 0) return;    // if still being decoded ... 
+ 
+            // find current frame index
+            let t = timeMs % gif.totalMs;
+            let index = 0;
+            while (t >= gif.durations[index]) {
+                t -= gif.durations[index];
+                index++;
+            }
+ 
+            // reupload when frame changes 
+            if (index !== gif.current) {
+                gl.bindTexture(gl.TEXTURE_2D, gif.texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, gif.frames[index]);
+                gif.current = index;
+            }
         }
 
         // build the scene & call the makeShapeBuffer for all hierchy parts
@@ -331,7 +488,7 @@
         }
 
         // draw one shape with its own model matrix
-        function drawShape(buffers, modelMatrix, material) {
+        function drawShape(buffers, modelMatrix, material,  texture = null, mapping = NO_MAPPING) {
             gl.uniformMatrix4fv(uMTM, false, modelMatrix);
 
             const mv = multiplyMat4(modelViewMatrix, modelMatrix);
@@ -349,6 +506,30 @@
             gl.bindBuffer(gl.ARRAY_BUFFER, buffers.nbo);
             gl.enableVertexAttribArray(normalLoc);
             gl.vertexAttribPointer(normalLoc, 3, gl.FLOAT, false, 0, 0);
+
+            
+            // tangent and textures 
+            if (buffers.tbo) {
+                gl.bindBuffer(gl.ARRAY_BUFFER, buffers.tbo);
+                gl.enableVertexAttribArray(tangentLoc);
+                gl.vertexAttribPointer(tangentLoc, 3, gl.FLOAT, false, 0, 0);
+            } else {
+                gl.disableVertexAttribArray(tangentLoc);
+            }
+            if (buffers.tcbo) {
+                gl.bindBuffer(gl.ARRAY_BUFFER, buffers.tcbo);
+                gl.enableVertexAttribArray(texCoordLoc);
+                gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+            } else {
+                gl.disableVertexAttribArray(texCoordLoc);
+            }
+ 
+            // select mapping
+            gl.uniform1i(uMappingLoc, mapping);
+            if (texture) {
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+            }
 
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.ibo);
             gl.drawElements(buffers.mode, buffers.count, gl.UNSIGNED_SHORT, 0);
@@ -375,6 +556,13 @@
                 for (const field of ["ka", "kd", "ks", "shininess", "metallic", "emissive"]) {
                     uMat[field] = gl.getUniformLocation(program, "uMaterial." + field);
                 }
+
+                tangentLoc = gl.getAttribLocation(program, "aTangent");
+                texCoordLoc = gl.getAttribLocation(program, "aTexCoord");
+                uMappingLoc = gl.getUniformLocation(program, "uMapping");
+                uTextureLoc = gl.getUniformLocation(program, "uTexture");
+                gl.uniform1i(uTextureLoc, 0);
+
             } catch (e) {
                 console.error(e);
             }
@@ -640,16 +828,17 @@
             setLights(objectRotation); // send lights after camera is set
 
             // draw root -> sun in the center
-            drawShape(scene.sun.sphere, objectRotation, scene.sun.material);
+            updateGifTexture(scene.sunGif, deltaTime);
+            drawShape(scene.sun.sphere, objectRotation, scene.sun.material, scene.sun.texture, scene.sun.mapping);
 
             // draw planet + orbit + sat
             for(let i = 0; i < scene.planets.length; i++){
                 const planet = scene.planets[i];
                 drawShape(planet.orbit, objectRotation, scene.orbitMaterial);
-                drawShape(planet.sphere, planetMatrices[i], planet.material);
+                drawShape(planet.sphere, planetMatrices[i], planet.material, planet.texture, planet.mapping);
                 drawShape(scene.satBody, satMatrices[i], scene.satBodyMaterial);
-                drawShape(scene.satPanel, panelMatrices[i][0], scene.satPanelMaterial);
-                drawShape(scene.satPanel, panelMatrices[i][1], scene.satPanelMaterial);
+                drawShape(scene.satPanel, panelMatrices[i][0], scene.satPanelMaterial, scene.panelTexture, COLOR_MAPPING);
+                drawShape(scene.satPanel, panelMatrices[i][1], scene.satPanelMaterial, scene.panelTexture, COLOR_MAPPING);
             }
 
         }
