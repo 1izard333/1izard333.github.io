@@ -451,6 +451,7 @@
 
         // functionallity to zoom into planet
         let zoomIndex = null; // no planet selected --> viewing whole system
+        const SUN_ZOOM = -1;  // zoomIndex value when the sun is selected (planets use 0 - 7)
 
         const buttonBox = document.getElementById("planetButtons")
 
@@ -459,6 +460,12 @@
         zoomOutButton.textContent = "Full Solar System View";
         zoomOutButton.onclick = function() {zoomIndex = null;};
         buttonBox.appendChild(zoomOutButton);
+
+        // zoom into sun button
+        const sunButton = document.createElement("button");
+        sunButton.textContent = "Sun";
+        sunButton.onclick = function() {zoomIndex = SUN_ZOOM;};
+        buttonBox.appendChild(sunButton);
 
         // function to alter ortho size 
         function makeOrtho(size){
@@ -805,8 +812,14 @@
             let lookX = 0, lookY = 0, lookZ = 0;
             let viewSize = orthoSize;
 
+            // if sun selected
+            if(zoomIndex === SUN_ZOOM){
+                // sun is at the center (0, 0, 0), so lookX/Y/Z stay 0
+                // make ortho value fit 3x the radius
+                viewSize = displayRadius(SUN) * 3;
+            }
             // if planet selected
-            if(zoomIndex !== null){
+            else if(zoomIndex !== null){
                 const m = planetMatrices[zoomIndex];
                 // translation valus of matrix
                 lookX = m[12];
