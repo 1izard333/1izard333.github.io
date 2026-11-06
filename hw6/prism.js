@@ -39,7 +39,10 @@ function makePrism(width, height, length, color){
         }
 
         // need to account for the corners 
-        
+        const s = Math.sin(theta), c = Math.cos(theta);
+        tangents.push(1, 0, 0);
+        texCoords.push(0.5 + 0.5 * s, 0.5 - 0.5 * y * c);
+
 
         indicies.push(pos_index, pos_index + 1, pos_index + 2,
                      pos_index, pos_index + 2, pos_index + 3);
